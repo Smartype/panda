@@ -4,6 +4,7 @@
 
 // ***************************** Definitions *****************************
 #define FIFO_SIZE_INT 0x400U
+#define FIFO_SIZE_DMA 0x1000U
 
 typedef struct uart_ring {
   volatile uint16_t w_ptr_tx;
@@ -17,6 +18,7 @@ typedef struct uart_ring {
   USART_TypeDef *uart;
   void (*callback)(struct uart_ring*);
   bool overwrite;
+  bool dma_rx;
 } uart_ring;
 
 // ***************************** Function prototypes *****************************

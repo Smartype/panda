@@ -9,6 +9,8 @@
 #include "drivers/harness.h"
 #include "drivers/fan.h"
 #include "stm32f4/llfan.h"
+#include "stm32f4/llrtc.h"
+#include "drivers/rtc.h"
 #include "drivers/clock_source.h"
 #include "boards/white.h"
 #include "boards/grey.h"
@@ -20,6 +22,10 @@
 void sound_tick(void) {}
 
 void detect_board_type(void) {
+#if 1
+    hw_type = HW_TYPE_BLACK_PANDA;
+    current_board = &board_black;
+#else
   // SPI lines floating: white (TODO: is this reliable? Not really, we have to enable ESP/GPS to be able to detect this on the UART)
   set_gpio_output(GPIOC, 14, 1);
   set_gpio_output(GPIOC, 5, 1);
@@ -42,4 +48,5 @@ void detect_board_type(void) {
 
   // Return A13 to the alt mode to fix SWD
   set_gpio_alternate(GPIOA, 13, GPIO_AF0_SWJ);
+#endif
 }

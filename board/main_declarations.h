@@ -24,3 +24,11 @@ extern bool heartbeat_disabled;            // set over USB
 
 // siren state
 extern bool siren_enabled;
+
+// -1: missing heartbeat disabled, 0: disabled, 1: start enabled, 2+: enabled
+extern int8_t charge_on_ignition;
+extern uint32_t started_counter;
+extern uint8_t disable_charging_after;
+extern uint32_t usb_powered_seconds;
+extern bool deepsleep_allowed;
+extern bool ignition_seen;

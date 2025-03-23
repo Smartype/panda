@@ -1,4 +1,5 @@
 import platform
+import os
 
 CC = 'gcc'
 system = platform.system()
@@ -8,6 +9,7 @@ if system == 'Darwin':
   CC += '-13'
 
 env = Environment(
+  ENV=os.environ,
   CC=CC,
   CFLAGS=[
     '-nostdlib',
@@ -15,6 +17,7 @@ env = Environment(
     '-std=gnu11',
     '-Wfatal-errors',
     '-Wno-pointer-to-int-cast',
+    '-DLIBC_NO_MEM_FUNCS=1',
   ],
   CPPPATH=[".", "../../board/", "../../../opendbc/safety/"],
 )

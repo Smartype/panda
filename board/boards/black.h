@@ -68,6 +68,54 @@ static bool black_check_ignition(void){
   return harness_check_ignition();
 }
 
+void black_set_gps_load_switch(bool enabled) {
+  set_gpio_output(GPIOC, 12, enabled);
+}
+
+void black_set_usb_power_mode(uint8_t mode) {
+  bool valid;
+  switch (mode) {
+    case USB_POWER_CLIENT:
+      black_set_usb_load_switch(false);
+      valid = true;
+      break;
+    case USB_POWER_CDP:
+      black_set_usb_load_switch(true);
+      valid = true;
+      break;
+    default:
+      print("Invalid USB power mode\n");
+      valid = false;
+      break;
+  }
+
+  if (valid) {
+    current_board->usb_power_mode = mode;
+  }
+}
+
+void black_set_gps_mode(uint8_t mode) {
+  switch (mode) {
+    case GPS_DISABLED:
+      // GPS OFF
+      set_gpio_output(GPIOC, 12, 0);
+      set_gpio_output(GPIOC, 5, 0);
+      break;
+    case GPS_ENABLED:
+      // GPS ON
+      set_gpio_output(GPIOC, 12, 1);
+      set_gpio_output(GPIOC, 5, 1);
+      break;
+    case GPS_BOOTMODE:
+      set_gpio_output(GPIOC, 12, 1);
+      set_gpio_output(GPIOC, 5, 0);
+      break;
+    default:
+      print("Invalid GPS mode\n");
+      break;
+  }
+}
+
 static void black_init(void) {
   common_init_gpio();
 
@@ -126,5 +174,10 @@ board board_black = {
   .set_ir_power = unused_set_ir_power,
   .set_siren = unused_set_siren,
   .read_som_gpio = unused_read_som_gpio,
-  .set_amp_enabled = unused_set_amp_enabled
+  .set_amp_enabled = unused_set_amp_enabled,
+  .has_gps = true,
+  .usb_power_mode = USB_POWER_CDP,
+  .has_rtc_battery = false,
+  .set_gps_mode = black_set_gps_mode,
+  .set_usb_power_mode = black_set_usb_power_mode
 };

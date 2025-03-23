@@ -155,6 +155,7 @@ static void tick_handler(void) {
     current_board->set_siren((loop_counter & 1U) && (siren_enabled || (siren_countdown > 0U)));
 
     // tick drivers at 8Hz
+    usb_tick();
     fan_tick();
     harness_tick();
     simple_watchdog_kick();
@@ -201,9 +202,34 @@ static void tick_handler(void) {
       // tick drivers at 1Hz
       bootkick_tick(check_started(), recent_heartbeat);
 
+      if (current_board->usb_power_mode != USB_POWER_CLIENT && usb_powered_seconds < __UINT32_MAX__) {
+        usb_powered_seconds += 1U;
+      }
+
       // increase heartbeat counter and cap it at the uint32 limit
       if (heartbeat_counter < UINT32_MAX) {
         heartbeat_counter += 1U;
+      }
+
+      if (check_started()) {
+        // re-enable timeout disabled charge_on_ignition when car started
+        if (started_counter == 0) {
+          if (charge_on_ignition == -1)
+            charge_on_ignition = 1;
+
+          heartbeat_counter = 0;
+        }
+
+        if (started_counter < __UINT32_MAX__) {
+          started_counter += 1U;
+        }
+
+        // force reset when usb not enumerated when car is started
+        if (!usb_enumerated && heartbeat_counter > 300) {
+          NVIC_SystemReset();
+        }
+      } else {
+        started_counter = 0;
       }
 
       // disabling heartbeat not allowed while in safety mode
@@ -267,6 +293,32 @@ static void tick_handler(void) {
           // Run fan when device is up but not talking to us.
           // The bootloader enables the SOM GPIO on boot.
           fan_set_power(current_board->read_som_gpio() ? 30U : 0U);
+
+          // stop charging when:
+          // 1. miss heartbeat for 15 minutes
+          // 2. charge on ignition disabled or car powered, but not started
+          if ((current_board->usb_power_mode != USB_POWER_CLIENT) && (heartbeat_counter > 7200 || usb_powered_seconds > 3600 * 12) &&
+              (charge_on_ignition <= 0 || (!check_started() && adc_get_voltage() > 5750))) {
+            print("switching USB to CLIENT mode\n");
+            current_board->set_usb_power_mode(USB_POWER_CLIENT);
+            usb_powered_seconds = 0;
+          }
+        }
+
+        if (disable_charging_after > 0) {
+          if (-- disable_charging_after == 0 && (current_board->usb_power_mode != USB_POWER_CLIENT) &&
+              !check_started() && heartbeat_counter >= 2U) {
+            print("switching USB to CLIENT mode\n");
+            current_board->set_usb_power_mode(USB_POWER_CLIENT);
+            usb_powered_seconds = 0;
+          }
+        }
+
+        // enter CDP mode when car starts to ensure we are charging a turned off EON
+        if ((current_board->usb_power_mode != USB_POWER_CDP) && check_started() && charge_on_ignition > 0) {
+          disable_charging_after = 0;
+          print("switching USB to CDP mode\n");
+          current_board->set_usb_power_mode(USB_POWER_CDP);
         }
       }
 
@@ -292,6 +344,38 @@ static void tick_handler(void) {
   }
   TICK_TIMER->SR = 0;
 }
+
+void EXTI_IRQ_Handler(void) {
+  if (check_exti_irq()) {
+    exti_irq_clear();
+    clock_init();
+
+    set_power_save_state(POWER_SAVE_STATUS_DISABLED);
+    deepsleep_allowed = false;
+    heartbeat_counter = 0U;
+    usb_soft_disconnect(false);
+
+    NVIC_EnableIRQ(TICK_TIMER_IRQ);
+  }
+}
+
+uint8_t rtc_counter = 0;
+void RTC_WKUP_IRQ_Handler(void) {
+  exti_irq_clear();
+  clock_init();
+
+  rtc_counter++;
+  if ((rtc_counter % 2U) == 0U) {
+    led_set(LED_BLUE, false);
+  } else {
+    led_set(LED_BLUE, true);
+  }
+
+  if (rtc_counter == __UINT8_MAX__) {
+    rtc_counter = 1U;
+  }
+}
+
 
 int main(void) {
   // Init interrupt table
@@ -328,6 +412,10 @@ int main(void) {
 
   // panda has an FPU, let's use it!
   enable_fpu();
+
+  if (current_board->has_gps) {
+    uart_init(&uart_ring_gps, 9600);
+  }
 
   microsecond_timer_init();
 
@@ -399,6 +487,25 @@ int main(void) {
         }
       #endif
     } else {
+      if (deepsleep_allowed && !usb_enumerated && !check_started() && ignition_seen && (heartbeat_counter > 30U) && disable_charging_after == 0 && !can_live) {
+        usb_soft_disconnect(true);
+        fan_set_power(0U);
+        print("switching USB to client mode\n");
+        current_board->set_usb_power_mode(USB_POWER_CLIENT);
+        usb_powered_seconds = 0;
+        NVIC_DisableIRQ(TICK_TIMER_IRQ);
+        delay(512000U);
+
+        // Init IRQs for CAN transceiver and ignition line
+        exti_irq_init();
+
+        // Init RTC Wakeup event on EXTI22
+        REGISTER_INTERRUPT(RTC_WKUP_IRQn, RTC_WKUP_IRQ_Handler, 10U, FAULT_INTERRUPT_RATE_EXTI)
+        rtc_wakeup_init();
+
+        // STOP mode
+        SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk;
+      }
       __WFI();
       SCB->SCR &= ~SCB_SCR_SLEEPDEEP_Msk;
     }

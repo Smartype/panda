@@ -4,7 +4,7 @@
 
 // ***************************** Definitions *****************************
 
-#define UART_BUFFER(x, size_rx, size_tx, uart_ptr, callback_ptr, overwrite_mode) \
+#define UART_BUFFER(x, size_rx, size_tx, uart_ptr, callback_ptr, overwrite_mode, rx_dma) \
   static uint8_t elems_rx_##x[size_rx]; \
   static uint8_t elems_tx_##x[size_tx]; \
   extern uart_ring uart_ring_##x; \
@@ -19,20 +19,23 @@
     .rx_fifo_size = (size_rx), \
     .uart = (uart_ptr), \
     .callback = (callback_ptr), \
+    .dma_rx = (rx_dma), \
     .overwrite = (overwrite_mode) \
   };
 
 // ******************************** UART buffers ********************************
+// gps = USART1
+UART_BUFFER(gps, FIFO_SIZE_DMA, FIFO_SIZE_INT, USART1, NULL, false, true)
 
 // debug = USART2
-UART_BUFFER(debug, FIFO_SIZE_INT, FIFO_SIZE_INT, USART2, debug_ring_callback, true)
+UART_BUFFER(debug, FIFO_SIZE_INT, FIFO_SIZE_INT, USART2, debug_ring_callback, true, false)
 
 // SOM debug = UART7
 #ifdef STM32H7
-  UART_BUFFER(som_debug, FIFO_SIZE_INT, FIFO_SIZE_INT, UART7, NULL, true)
+  UART_BUFFER(som_debug, FIFO_SIZE_INT, FIFO_SIZE_INT, UART7, NULL, true, false)
 #else
   // UART7 is not available on F4
-  UART_BUFFER(som_debug, 1U, 1U, NULL, NULL, true)
+  UART_BUFFER(som_debug, 1U, 1U, NULL, NULL, true, false)
 #endif
 
 uart_ring *get_ring_by_number(int a) {
@@ -40,6 +43,9 @@ uart_ring *get_ring_by_number(int a) {
   switch(a) {
     case 0:
       ring = &uart_ring_debug;
+      break;
+    case 1:
+      ring = &uart_ring_gps;
       break;
     case 4:
       ring = &uart_ring_som_debug;

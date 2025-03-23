@@ -1,3 +1,7 @@
+#define ADCCHAN_ACCEL0 10
+#define ADCCHAN_ACCEL1 11
+#define ADCCHAN_VIN 12
+#define ADCCHAN_CURRENT 13
 
 void register_set(volatile uint32_t *addr, uint32_t val, uint32_t mask);
 
@@ -21,4 +25,15 @@ uint16_t adc_get_raw(uint8_t channel) {
 
 uint16_t adc_get_mV(uint8_t channel) {
   return (adc_get_raw(channel) * current_board->avdd_mV) / 4095U;
+}
+
+uint32_t adc_get_voltage(void) {
+  // REVC has a 10, 1 (1/11) voltage divider
+  // Here is the calculation for the scale (s)
+  // ADCV = VIN_S * (1/11) * (4095/3.3)
+  // RETVAL = ADCV * s = VIN_S*1000
+  // s = 1000/((4095/3.3)*(1/11)) = 8.8623046875
+
+  // Avoid needing floating point math, so output in mV
+  return (adc_get_raw(ADCCHAN_VIN) * 8862U) / 1000U;
 }

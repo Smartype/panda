@@ -43,8 +43,15 @@ static int get_health_pkt(void *dat) {
   health->sbu2_voltage_mV = harness.sbu2_voltage_mV;
 
   health->som_reset_triggered = bootkick_reset_triggered;
+  health->usb_power_mode_pkt = current_board->usb_power_mode;
 
   return sizeof(*health);
+}
+
+int get_rtc_pkt(void *dat) {
+  timestamp_t t = rtc_get_time();
+  (void)memcpy(dat, &t, sizeof(t));
+  return sizeof(t);
 }
 
 // send on serial, first byte to select the ring
@@ -64,6 +71,7 @@ void comms_endpoint2_write(const uint8_t *data, uint32_t len) {
 int comms_control_handler(ControlPacket_t *req, uint8_t *resp) {
   unsigned int resp_len = 0;
   uart_ring *ur = NULL;
+  timestamp_t t;
   uint32_t time;
 
 #ifdef DEBUG_COMMS
@@ -74,6 +82,52 @@ int comms_control_handler(ControlPacket_t *req, uint8_t *resp) {
 #endif
 
   switch (req->request) {
+    // **** 0xa0: get rtc time
+    case 0xa0:
+      resp_len = get_rtc_pkt(resp);
+      break;
+    // **** 0xa1: set rtc year
+    case 0xa1:
+      t = rtc_get_time();
+      t.year = req->param1;
+      rtc_set_time(t);
+      break;
+    // **** 0xa2: set rtc month
+    case 0xa2:
+      t = rtc_get_time();
+      t.month = req->param1;
+      rtc_set_time(t);
+      break;
+    // **** 0xa3: set rtc day
+    case 0xa3:
+      t = rtc_get_time();
+      t.day = req->param1;
+      rtc_set_time(t);
+      break;
+    // **** 0xa4: set rtc weekday
+    case 0xa4:
+      t = rtc_get_time();
+      t.weekday = req->param1;
+      rtc_set_time(t);
+      break;
+    // **** 0xa5: set rtc hour
+    case 0xa5:
+      t = rtc_get_time();
+      t.hour = req->param1;
+      rtc_set_time(t);
+      break;
+    // **** 0xa6: set rtc minute
+    case 0xa6:
+      t = rtc_get_time();
+      t.minute = req->param1;
+      rtc_set_time(t);
+      break;
+    // **** 0xa7: set rtc second
+    case 0xa7:
+      t = rtc_get_time();
+      t.second = req->param1;
+      rtc_set_time(t);
+      break;
     // **** 0xa8: get microsecond timer
     case 0xa8:
       time = microsecond_timer_get();
@@ -210,6 +264,28 @@ int comms_control_handler(ControlPacket_t *req, uint8_t *resp) {
     case 0xd8:
       NVIC_SystemReset();
       break;
+    // **** 0xd9: set ESP power
+    case 0xd9:
+      if (req->param1 == 1U) {
+        current_board->set_gps_mode(GPS_ENABLED);
+      } else if (req->param1 == 2U) {
+        current_board->set_gps_mode(GPS_BOOTMODE);
+      } else {
+        current_board->set_gps_mode(GPS_DISABLED);
+      }
+      break;
+    // **** 0xda: reset ESP, with optional boot mode
+    case 0xda:
+      current_board->set_gps_mode(GPS_DISABLED);
+      delay(1000000);
+      if (req->param1 == 1U) {
+        current_board->set_gps_mode(GPS_BOOTMODE);
+      } else {
+        current_board->set_gps_mode(GPS_ENABLED);
+      }
+      delay(1000000);
+      current_board->set_gps_mode(GPS_ENABLED);
+      break;
     // **** 0xdb: set OBD CAN multiplexing mode
     case 0xdb:
       if (current_board->harness_config->has_harness) {
@@ -254,6 +330,11 @@ int comms_control_handler(ControlPacket_t *req, uint8_t *resp) {
       ur = get_ring_by_number(req->param1);
       if (!ur) {
         break;
+      }
+
+      // TODO: Remove this again and fix boardd code to hande the message bursts instead of single chars
+      if (ur == &uart_ring_gps) {
+        dma_pointer_handler(ur, DMA2_Stream5->NDTR);
       }
 
       // read
@@ -378,6 +459,10 @@ int comms_control_handler(ControlPacket_t *req, uint8_t *resp) {
         UNUSED(ret);
       }
       break;
+    // **** 0xfb: allow highest power saving mode (stop) to be entered
+    case 0xfb:
+      deepsleep_allowed = true;
+      break;
     // **** 0xfc: set CAN FD non-ISO mode
     case 0xfc:
       if ((req->param1 < PANDA_CAN_CNT) && current_board->has_canfd) {
@@ -385,6 +470,23 @@ int comms_control_handler(ControlPacket_t *req, uint8_t *resp) {
         bool ret = can_init(CAN_NUM_FROM_BUS_NUM(req->param1));
         UNUSED(ret);
       }
+      break;
+    // **** 0xfd: set USB power
+    case 0xfd:
+      if (req->param1 == USB_POWER_CDP || req->param1 == USB_POWER_DCP) {
+        current_board->set_usb_power_mode(req->param1);
+        charge_on_ignition = 1;
+        disable_charging_after = 0;
+      } else {
+        disable_charging_after = req->param2;
+        if (disable_charging_after == 0) {
+          current_board->set_usb_power_mode(req->param1);
+        }
+      }
+      break;
+    // **** 0xfe: set charge on ignition
+    case 0xfe:
+      charge_on_ignition = req->param1;
       break;
     default:
       print("NO HANDLER ");

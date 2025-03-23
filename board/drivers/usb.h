@@ -11,6 +11,9 @@ static bool outep3_processing = false;
 // Store the current interface alt setting.
 static int current_int0_alt_setting = 0;
 
+static uint16_t usb_last_frame_num = 0U;
+bool usb_enumerated = false;
+
 // packet read and write
 
 static void *USB_ReadPacket(void *dest, uint16_t len) {
@@ -120,6 +123,14 @@ static char to_hex_char(uint8_t a) {
     ret = 'a' + (a - 10U);
   }
   return ret;
+}
+
+extern bool usb_enumerated;
+
+void usb_tick(void) {
+  uint16_t current_frame_num = (USBx_DEVICE->DSTS & USB_OTG_DSTS_FNSOF_Msk) >> USB_OTG_DSTS_FNSOF_Pos;
+  usb_enumerated = (current_frame_num != usb_last_frame_num);
+  usb_last_frame_num = current_frame_num;
 }
 
 static void usb_setup(void) {
@@ -790,4 +801,12 @@ void can_tx_comms_resume_usb(void) {
     USBx_OUTEP(3U)->DOEPCTL |= USB_OTG_DOEPCTL_EPENA | USB_OTG_DOEPCTL_CNAK;
   }
   EXIT_CRITICAL();
+}
+
+void usb_soft_disconnect(bool enable) {
+  if (enable) {
+    USBx_DEVICE->DCTL |= USB_OTG_DCTL_SDIS;
+  } else {
+    USBx_DEVICE->DCTL &= ~USB_OTG_DCTL_SDIS;
+  }
 }

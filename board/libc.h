@@ -15,6 +15,7 @@ void assert_fatal(bool condition, const char *msg) {
   }
 }
 
+#ifndef LIBC_NO_MEM_FUNCS
 // cppcheck-suppress misra-c2012-21.2
 void *memset(void *str, int c, unsigned int n) {
   uint8_t *s = str;
@@ -24,10 +25,12 @@ void *memset(void *str, int c, unsigned int n) {
   }
   return str;
 }
+#endif
 
 #define UNALIGNED(X, Y) \
   (((uint32_t)(X) & (sizeof(uint32_t) - 1U)) | ((uint32_t)(Y) & (sizeof(uint32_t) - 1U)))
 
+#ifndef LIBC_NO_MEM_FUNCS
 // cppcheck-suppress misra-c2012-21.2
 void *memcpy(void *dest, const void *src, unsigned int len) {
   unsigned int n = len;
@@ -59,7 +62,9 @@ void *memcpy(void *dest, const void *src, unsigned int len) {
   }
   return dest;
 }
+#endif
 
+#ifndef LIBC_NO_MEM_FUNCS
 // cppcheck-suppress misra-c2012-21.2
 int memcmp(const void * ptr1, const void * ptr2, unsigned int num) {
   int ret = 0;
@@ -75,3 +80,4 @@ int memcmp(const void * ptr1, const void * ptr2, unsigned int num) {
   }
   return ret;
 }
+#endif

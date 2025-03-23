@@ -23,6 +23,8 @@ typedef void (*board_set_siren)(bool enabled);
 typedef void (*board_set_bootkick)(BootState state);
 typedef bool (*board_read_som_gpio)(void);
 typedef void (*board_set_amp_enabled)(bool enabled);
+typedef void (*board_set_gps_mode)(uint8_t);
+typedef void (*board_set_usb_power_mode)(uint8_t);
 
 struct board {
   harness_configuration *harness_config;
@@ -35,6 +37,9 @@ struct board {
   const bool fan_stall_recovery;
   const uint8_t fan_enable_cooldown_time;
   const uint8_t fan_max_pwm;
+  const bool has_gps;
+  const bool has_rtc_battery;
+  uint8_t usb_power_mode;
   board_init init;
   board_init_bootloader init_bootloader;
   board_enable_can_transceiver enable_can_transceiver;
@@ -48,6 +53,8 @@ struct board {
   board_set_bootkick set_bootkick;
   board_read_som_gpio read_som_gpio;
   board_set_amp_enabled set_amp_enabled;
+  board_set_gps_mode set_gps_mode;
+  board_set_usb_power_mode set_usb_power_mode;
 };
 
 // ******************* Definitions ********************
@@ -73,6 +80,10 @@ struct board {
 // CAN modes
 #define CAN_MODE_NORMAL 0U
 #define CAN_MODE_OBD_CAN2 1U
+
+#define GPS_DISABLED 0U
+#define GPS_ENABLED 1U
+#define GPS_BOOTMODE 2U
 
 extern struct board board_black;
 extern struct board board_dos;

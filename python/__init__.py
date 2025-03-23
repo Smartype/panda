@@ -131,6 +131,7 @@ class Panda:
   HEALTH_PACKET_VERSION = 16
   CAN_HEALTH_PACKET_VERSION = 5
   HEALTH_STRUCT = struct.Struct("<IIIIIIIIBBBBBHBBBHfBBHBHHB")
+  HEALTH_STRUCT = struct.Struct("<IIIIIIIIBBBBBHBBBHfBBHBHHBB")
   CAN_HEALTH_STRUCT = struct.Struct("<BIBBBBBBBBIIIIIIIHHBBBIIII")
 
   F4_DEVICES = [HW_TYPE_WHITE_PANDA, HW_TYPE_GREY_PANDA, HW_TYPE_BLACK_PANDA, HW_TYPE_UNO, HW_TYPE_DOS]
@@ -577,6 +578,7 @@ class Panda:
       "sbu1_voltage_mV": a[23],
       "sbu2_voltage_mV": a[24],
       "som_reset_triggered": a[25],
+      "usb_power_mode": a[26],
     }
 
   @ensure_can_health_packet_version
@@ -715,6 +717,19 @@ class Panda:
 
   def set_power_save(self, power_save_enabled=0):
     self._handle.controlWrite(Panda.REQUEST_OUT, 0xe7, int(power_save_enabled), 0, b'')
+
+  def enable_deepsleep(self):
+    self._handle.controlWrite(Panda.REQUEST_OUT, 0xfb, 0, 0, b'')
+
+  def set_usb_power(self, on, after_sec=0):
+    self._handle.controlWrite(Panda.REQUEST_OUT, 0xfd, int(on), int(after_sec), b'')
+
+  def set_esp_power(self, on):
+    self._handle.controlWrite(Panda.REQUEST_OUT, 0xd9, int(on), 0, b'')
+
+  def esp_reset(self, bootmode=0):
+    self._handle.controlWrite(Panda.REQUEST_OUT, 0xda, int(bootmode), 0, b'')
+    time.sleep(0.2)
 
   def set_safety_mode(self, mode=CarParams.SafetyModel.silent, param=0):
     self._handle.controlWrite(Panda.REQUEST_OUT, 0xdc, mode, param, b'')

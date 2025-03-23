@@ -68,6 +68,10 @@
   #include "stm32f4/llbxcan.h"
 #endif
 
+#if defined(PANDA) && !defined(BOOTSTUB)
+  #include "stm32f4/llexti.h"
+#endif
+
 #include "stm32f4/llusb.h"
 
 void early_gpio_float(void) {
